@@ -53,3 +53,9 @@
 **User:** rewrite the instructions so that they point to the github repo https://github.com/meleantonio/ram-calculator
 
 **Agent:** Replaced the Origin clone commands in `README.md` and `README.zh-CN.md` with `git clone https://github.com/meleantonio/ram-calculator.git` and linked that repository.
+
+## 2026-10-02 — Are Origin and GitHub synced?
+
+**User:** are the repos on origin and github synced?
+
+**Agent:** No. Origin `main` is `52278e0` (docs: clone the skill from the GitHub repository, 2026-10-02 10:44:21 UTC). GitHub `main` is `4c30582`, its parent. `mirrorStatus` is `no-mirror` and `githubNodeId` is null, so later pushes do not propagate.
