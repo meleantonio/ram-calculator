@@ -35,3 +35,9 @@
 - The repository is **meleantonio/ram-calculator**: https://cursor.com/codebase/meleantonio/ram-calculator
   Visibility is private; it can be changed in settings on that page. Clone with the Origin CLI
   (`origin repo clone meleantonio/ram-calculator`). README clone commands were updated to that name.
+
+## 2026-10-02 — Repository link
+
+**User:** Include the browse URL, private visibility, Origin CLI clone steps, PATH fallback, and Origin CLI docs in the reply.
+
+**Agent:** Updated both READMEs to clone `meleantonio/ram-calculator` and replied with the browse URL and install commands.
