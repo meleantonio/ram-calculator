@@ -22,6 +22,7 @@ import argparse
 import csv
 import json
 import logging
+import os
 import platform
 import subprocess
 import sys
@@ -124,22 +125,108 @@ def format_duration(seconds: float) -> str:
     return f"{minutes}m {secs:02d}s"
 
 
+def _leading_int(value: str | None) -> int | None:
+    """Parse the leading integer of values like ``'16'`` or ``'16(x2)'`` (Slurm's per-node CPU lists)."""
+    digits = ""
+    for char in (value or "").strip():
+        if not char.isdigit():
+            break
+        digits += char
+    return int(digits) if digits else None
+
+
+def cgroup_memory_limit(
+    proc_cgroup: Path = Path("/proc/self/cgroup"), cgroup_root: Path = Path("/sys/fs/cgroup")
+) -> int | None:
+    """Tightest memory limit (bytes) imposed on this process by its cgroup and parents, or None if unlimited."""
+    try:
+        lines = proc_cgroup.read_text(encoding="ascii").splitlines()
+    except OSError:
+        return None
+
+    candidates: list[Path] = []
+    for line in lines:
+        hierarchy, _, rest = line.partition(":")
+        controllers, _, rel_path = rest.partition(":")
+        rel = rel_path.lstrip("/")
+        if hierarchy == "0" and controllers == "":
+            node = cgroup_root / rel
+            while True:
+                candidates.append(node / "memory.max")
+                if node == cgroup_root:
+                    break
+                node = node.parent
+        elif "memory" in controllers.split(","):
+            candidates.append(cgroup_root / "memory" / rel / "memory.limit_in_bytes")
+
+    limits = []
+    for candidate in candidates:
+        try:
+            text = candidate.read_text(encoding="ascii").strip()
+        except OSError:
+            continue
+        if text.isdigit():
+            limits.append(int(text))
+    return min(limits) if limits else None
+
+
+def detect_allocation(total_ram_bytes: int, logical_cpus: int | None) -> dict[str, int]:
+    """CPUs and memory actually granted to this job by Slurm or a cgroup, when smaller than the whole machine.
+
+    On a cluster the node's totals overstate what the job had, so the README should report the allocation.
+    """
+    env = os.environ
+    allocation: dict[str, int] = {}
+
+    cpus = _leading_int(env.get("SLURM_CPUS_PER_TASK")) or _leading_int(env.get("SLURM_JOB_CPUS_PER_NODE"))
+    if cpus is None and hasattr(os, "sched_getaffinity"):
+        cpus = len(os.sched_getaffinity(0))
+    if cpus is not None and (logical_cpus is None or cpus < logical_cpus):
+        allocation["cpus"] = cpus
+
+    mem_mib = _leading_int(env.get("SLURM_MEM_PER_NODE"))
+    per_cpu_mib = _leading_int(env.get("SLURM_MEM_PER_CPU"))
+    if mem_mib is None and per_cpu_mib is not None:
+        mem_mib = per_cpu_mib * allocation.get("cpus", 1)
+    limit = mem_mib * 1024**2 if mem_mib is not None else cgroup_memory_limit()
+    if limit is not None and limit < total_ram_bytes:
+        allocation["memory_limit_bytes"] = limit
+    return allocation
+
+
 def describe_machine() -> dict[str, Any]:
     """Collect the facts a replicator needs to compare their machine with the one used for measuring."""
-    return {
+    total_ram = psutil.virtual_memory().total
+    logical_cpus = psutil.cpu_count(logical=True)
+    machine: dict[str, Any] = {
         "os": f"{platform.system()} {platform.release()}",
         "arch": platform.machine(),
-        "logical_cpus": psutil.cpu_count(logical=True),
-        "total_ram_bytes": psutil.virtual_memory().total,
+        "logical_cpus": logical_cpus,
+        "total_ram_bytes": total_ram,
         "python": platform.python_version(),
     }
+    if "SLURM_JOB_ID" in os.environ:
+        machine["slurm_job_id"] = os.environ["SLURM_JOB_ID"]
+    allocation = detect_allocation(total_ram, logical_cpus)
+    if allocation:
+        machine["allocation"] = allocation
+    return machine
 
 
 def machine_summary(machine: dict[str, Any]) -> str:
-    """One-line machine description for the README table."""
+    """One-line machine description for the README table, including the job allocation when there is one."""
     ram = machine.get("total_ram_bytes", 0) / GIB
     os_arch = f"{machine.get('os', '?')} {machine.get('arch', '')}".strip()
-    return f"{os_arch}, {machine.get('logical_cpus', '?')} logical CPUs, {ram:.0f} GiB RAM"
+    summary = f"{os_arch}, {machine.get('logical_cpus', '?')} logical CPUs, {ram:.0f} GiB RAM"
+    allocation = machine.get("allocation") or {}
+    granted = []
+    if "cpus" in allocation:
+        granted.append(f"{allocation['cpus']} CPUs")
+    if "memory_limit_bytes" in allocation:
+        granted.append(format_bytes(allocation["memory_limit_bytes"]))
+    if granted:
+        summary += f" (job allocation: {', '.join(granted)})"
+    return summary
 
 
 def readme_row(measurement: Measurement) -> str:

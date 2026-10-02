@@ -18,13 +18,19 @@ Based on Florian Oswald's JPE Data Editor post, ["How Much RAM Does Your Replica
 
 1. **List every entry point a replicator runs.** That includes the master script and each model variant
    (baseline, extensions, robustness). A variant with a richer state space needs its own measurement.
-2. **Measure two things per entry point**, always including child/worker processes:
+2. **Look for measurements you already have.** If the code ran on Slurm or PBS, the accounting database
+   (`sacct`, `seff`, `qstat -f`) has probably already recorded each completed job's peak, so no rerun is
+   needed. Old `/usr/bin/time` logs count too. See the Slurm caveats in
+   [platform-commands.md](platform-commands.md).
+3. **Measure what is still missing.** For each entry point, measure two things, always including
+   child/worker processes:
    - the **peak RAM** for the whole run (one number), which decides whether the job fits at all;
-   - **RAM over time** (a trace), which shows which stage causes the peak.
-3. **Record the result** in the README's computational requirements section (template below).
-4. **Commit the evidence** (the run log containing the peak line, plus the trace CSV or plot) to `logs/` or
-   `outputs/` in the package.
-5. **Go through the checklist** at the bottom.
+   - **RAM over time** (a trace), which shows which stage causes the peak. Print a timestamped marker at the
+     start of each stage so you can line the trace up with the stages.
+4. **Record the result** in the README's computational requirements section (template below).
+5. **Commit the evidence** (the run log containing the peak line, plus the trace CSV, plot, or `sacct` output)
+   to `logs/` or `outputs/` in the package.
+6. **Go through the checklist** at the bottom.
 
 ### Measuring
 
@@ -32,6 +38,7 @@ Preferred: run the bundled cross-platform helper. It sums RSS across the whole p
 trace (so evidence survives an OOM kill), and prints a ready-to-paste README row:
 
 ```bash
+set -o pipefail   # so `tee` doesn't hide the exit code (137 = killed)
 python scripts/measure_ram.py --label "Baseline model" -o logs/ram/baseline_trace.csv \
     --summary logs/ram/baseline.json -- stata-mp -b do main.do 2>&1 | tee logs/ram/baseline_run.log
 # needs psutil (pip install psutil); or: uv run scripts/measure_ram.py -- ...
@@ -40,11 +47,18 @@ python scripts/measure_ram.py --label "Baseline model" -o logs/ram/baseline_trac
 
 Alternatives: `psrecord <PID> --interval 5 --log mem.txt --plot mem.png --include-children`, or OS-native
 tools. See [platform-commands.md](platform-commands.md) for macOS, Linux, Windows, and cgroup/Slurm commands,
-launch lines for MATLAB, Stata, and R, and how to get Stata onto `PATH`.
+an `sbatch` template, launch lines for MATLAB, Stata, and R, and how to get Stata onto `PATH`.
 
 **If you are an agent:** a full run can take hours and use most of a machine's memory. Ask before you start a
 long job. If you can't run it, give the user the exact commands to run. Never write a RAM figure you didn't
-measure; leave a visible `TODO: measure peak RAM` in the README instead.
+measure, even if the user asks for "a reasonable estimate". Use one of these instead:
+
+- **If a full run completed under a memory limit the scheduler enforced** (for example `--mem=256G`), write
+  that as an upper bound: "ran to completion with 256 GiB allocated (enforced by Slurm); the actual peak may
+  be lower". Cite the job IDs.
+- **If only the machine's total RAM is known**, say "ran on a machine with 256 GiB of RAM", plus a visible
+  `TODO: measure peak RAM`.
+- **Don't extrapolate from a subsample.** Parsing overhead and grid growth don't scale linearly.
 
 ## Quick reference: native peak RAM
 
@@ -53,8 +67,8 @@ measure; leave a visible `TODO: measure peak RAM` in the README instead.
 | macOS | `/usr/bin/time -l <cmd>` | `maximum resident set size` | **bytes** |
 | Linux | `/usr/bin/time -v <cmd>` | `Maximum resident set size (kbytes)` | KiB |
 | Linux, running job | `grep VmHWM /proc/<PID>/status` | `VmHWM` | KiB |
-| Linux cgroup / Slurm / Docker | `cat /sys/fs/cgroup/<job cgroup>/memory.peak` (v1: `memory.max_usage_in_bytes`) | file content | bytes |
-| Slurm, finished job | `sacct -j <jobid> --format=JobID,MaxRSS,Elapsed` | `MaxRSS` | as suffixed |
+| Linux cgroup / Slurm / Docker | `cat /sys/fs/cgroup/<job cgroup>/memory.peak` (v1: `memory.max_usage_in_bytes`); includes page cache | file content | bytes |
+| Slurm, finished job | `sacct -j <jobid> --units=G --format=JobID,State,MaxRSS,ReqMem,Elapsed` | `MaxRSS` on the `.batch` row | GiB |
 | Windows | `(Get-Process <name>).PeakWorkingSet64`, polled while the process runs | value | bytes |
 | any | `ps -o rss= -p <PID>`, polled | value | KiB |
 
@@ -75,7 +89,13 @@ Logs and traces: `logs/ram/`.
 | Entrepreneur model: solve + simulate | 259 GiB | 9h 15m | 32-core Linux server, 512 GiB RAM |
 
 The entrepreneur model adds a state dimension, which enlarges the state-space grid.
+`02_estimate.R` runs 16 worker processes and memory grows roughly with the number of workers;
+on a smaller machine, set `workers` lower in `02_estimate.R`.
 ```
+
+On a cluster, "Measured on" should give the job's allocation (CPUs and `--mem`), not the node's total size.
+State the worker count for each parallel step. When you recommend an amount of RAM, add some headroom to the
+largest measured peak, and say how much.
 
 ## When the number is surprisingly high
 
@@ -102,7 +122,11 @@ These choices are often fine. The point is to measure what they cost instead of 
   separate `Rterm` process on Windows. Launchers such as `matlab` start the real binary as a separate process.
   Find the process with `pgrep -nf <script name>`, or measure the whole process tree.
 - **Reporting a crashed run.** A non-zero exit code or exit 137 (SIGKILL, often the OOM killer) means the
-  peak shown is a lower bound, not the requirement.
+  peak shown is a lower bound, not the requirement. On Slurm, the job state is `OUT_OF_MEMORY` or `FAILED`.
+  For a measurement run, request generous `--mem` so the run itself isn't killed.
+- **Missing workers that run outside the job.** With a MATLAB cluster profile (MATLAB Parallel Server),
+  `parpool` workers are separate scheduler jobs. They don't appear in the process tree or the job's cgroup.
+  Measure them through their own jobs.
 - **Sampling too sparsely.** Short spikes between samples get missed. Cross-check against an OS high-water
   mark (`time`, `VmHWM`, cgroup `memory.peak`). Note that summed RSS can double-count shared pages, which
   errs on the safe side.

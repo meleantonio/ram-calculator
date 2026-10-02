@@ -65,18 +65,67 @@ pstree -p "$PID"   # inspect the full tree if workers spawn their own children
 ### Containers and schedulers (cgroups)
 
 Under Slurm, PBS, or Docker, the cgroup records a true peak covering every process in the job, so there is
-no polling and no race with process exit. On a shared cluster this is usually the most reliable number,
-because it is exactly what the scheduler enforces.
+no polling and no race with process exit. This is the number the scheduler compares against its memory limit.
+Two caveats:
+
+- It **includes page cache**, for example from reading a 40 GB CSV, so it can be well above summed RSS. Say
+  which measure you report.
+- Inside `sbatch`, `/proc/self/cgroup` points to the **step's** cgroup. The whole job's cgroup is a parent
+  directory.
 
 ```bash
 cat /proc/self/cgroup                                # find your cgroup path
 cat /sys/fs/cgroup/<path>/memory.peak                # cgroup v2 (kernel >= 5.19), bytes
 cat /sys/fs/cgroup/memory/<path>/memory.max_usage_in_bytes   # cgroup v1, bytes
-
-sacct -j <jobid> --format=JobID,MaxRSS,ReqMem,Elapsed,State  # Slurm, after the job ends
-seff <jobid>                                                  # Slurm summary, if installed
-docker stats --no-stream <container>                          # Docker, live
+docker stats --no-stream <container>                 # Docker, live
 ```
+
+### Slurm: use the accounting records you already have
+
+```bash
+# All your recent jobs (adjust the start date), then one job in detail
+sacct -u "$USER" -S 2026-01-01 --units=G \
+  --format=JobID,JobName%30,State,ExitCode,ReqMem,MaxRSS,Elapsed,AllocCPUS,NodeList | tee logs/ram/sacct_all.txt
+sacct -j <jobid> --units=G --format=JobID,JobName%30,State,ExitCode,ReqMem,MaxRSS,Elapsed,AllocCPUS
+seff <jobid>                                   # summary, if your cluster has it
+scontrol show node <node> | grep -E 'CPUTot|RealMemory'   # node hardware, for the README
+```
+
+How to read `sacct` output:
+
+- **Where to look:** with `sbatch`, `MaxRSS` is on the `<jobid>.batch` row; the top-level row is often blank.
+  Processes started inside the batch script, such as `future`/`parallel` workers, are included.
+- **Multi-task steps** (`srun -n`): `MaxRSS` is the maximum over tasks, not the sum. Use `TRESUsageInTot` if
+  your Slurm version has it.
+- **Sampling:** memory is sampled every `JobAcctGatherFrequency` seconds (default 30), so short spikes can be
+  missed. Check the setting with `scontrol show config | grep JobAcctGather`.
+- **Only `COMPLETED` jobs with exit code `0:0` count.** `OUT_OF_MEMORY`, `FAILED`, or `TIMEOUT` give only a
+  lower bound.
+- **Units:** with `--units=G`, "G" means GiB. On older Slurm versions, a `c`/`n` suffix on `ReqMem` means per
+  CPU or per node.
+- **Retention:** accounting records are purged after a site-specific period. If `sacct` returns nothing,
+  measure again.
+
+### Slurm: a measurement job
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=ram_baseline
+#SBATCH --cpus-per-task=17          # e.g. 16 workers + the main process
+#SBATCH --mem=256G                  # generous, so the measurement run itself isn't killed
+#SBATCH --time=24:00:00
+#SBATCH --output=logs/ram/%x_%j.out
+set -o pipefail
+module load R matlab                # site-specific
+# psutil: pip install --user psutil (or use a module/conda env if the cluster has no internet access)
+python scripts/measure_ram.py --label "Baseline model" -i 5 \
+  -o logs/ram/baseline_trace.csv --summary logs/ram/baseline.json \
+  -- matlab -batch "run('model/solve_baseline.m')"
+```
+
+After the job ends, run `sacct -j <jobid>` as a cross-check and commit both outputs. `measure_ram.py`
+records the job's CPU and memory allocation, read from the Slurm environment variables and the cgroup limit,
+next to the node's totals.
 
 ## Windows (PowerShell)
 

@@ -64,6 +64,80 @@ def test_readme_row_has_all_columns() -> None:
     )
 
 
+@pytest.mark.parametrize(("value", "expected"), [("16", 16), ("16(x2)", 16), ("", None), (None, None), ("x", None)])
+def test_leading_int(value: str | None, expected: int | None) -> None:
+    assert measure_ram._leading_int(value) == expected
+
+
+def test_cgroup_v2_limit_uses_tightest_ancestor(tmp_path) -> None:
+    root = tmp_path / "cgroup"
+    step = root / "system.slice" / "slurm" / "job_42" / "step_batch"
+    step.mkdir(parents=True)
+    (step / "memory.max").write_text("max\n")
+    (step.parent / "memory.max").write_text(f"{256 * 1024**3}\n")
+    (root / "system.slice" / "memory.max").write_text(f"{400 * 1024**3}\n")
+    proc_cgroup = tmp_path / "proc_cgroup"
+    proc_cgroup.write_text("0::/system.slice/slurm/job_42/step_batch\n")
+
+    assert measure_ram.cgroup_memory_limit(proc_cgroup, root) == 256 * 1024**3
+
+
+def test_cgroup_v1_limit(tmp_path) -> None:
+    root = tmp_path / "cgroup"
+    job = root / "memory" / "slurm" / "job_7"
+    job.mkdir(parents=True)
+    (job / "memory.limit_in_bytes").write_text(f"{64 * 1024**3}\n")
+    proc_cgroup = tmp_path / "proc_cgroup"
+    proc_cgroup.write_text("5:cpuset:/slurm/job_7\n4:memory:/slurm/job_7\n")
+
+    assert measure_ram.cgroup_memory_limit(proc_cgroup, root) == 64 * 1024**3
+
+
+def test_cgroup_limit_missing_or_unlimited(tmp_path) -> None:
+    assert measure_ram.cgroup_memory_limit(tmp_path / "nope", tmp_path) is None
+    proc_cgroup = tmp_path / "proc_cgroup"
+    proc_cgroup.write_text("0::/\n")
+    (tmp_path / "memory.max").write_text("max\n")
+    assert measure_ram.cgroup_memory_limit(proc_cgroup, tmp_path) is None
+
+
+def test_detect_allocation_from_slurm_env(monkeypatch) -> None:
+    monkeypatch.setenv("SLURM_CPUS_PER_TASK", "17")
+    monkeypatch.setenv("SLURM_MEM_PER_NODE", str(256 * 1024))
+    allocation = measure_ram.detect_allocation(total_ram_bytes=512 * 1024**3, logical_cpus=64)
+    assert allocation == {"cpus": 17, "memory_limit_bytes": 256 * 1024**3}
+
+
+def test_detect_allocation_mem_per_cpu(monkeypatch) -> None:
+    monkeypatch.delenv("SLURM_MEM_PER_NODE", raising=False)
+    monkeypatch.setenv("SLURM_JOB_CPUS_PER_NODE", "8(x2)")
+    monkeypatch.delenv("SLURM_CPUS_PER_TASK", raising=False)
+    monkeypatch.setenv("SLURM_MEM_PER_CPU", "4096")
+    allocation = measure_ram.detect_allocation(total_ram_bytes=512 * 1024**3, logical_cpus=64)
+    assert allocation == {"cpus": 8, "memory_limit_bytes": 32 * 1024**3}
+
+
+def test_detect_allocation_ignores_whole_machine(monkeypatch) -> None:
+    for var in ("SLURM_CPUS_PER_TASK", "SLURM_JOB_CPUS_PER_NODE", "SLURM_MEM_PER_NODE", "SLURM_MEM_PER_CPU"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(measure_ram, "cgroup_memory_limit", lambda: None)
+    monkeypatch.setattr(measure_ram.os, "sched_getaffinity", lambda pid: set(range(4)), raising=False)
+    assert measure_ram.detect_allocation(total_ram_bytes=16 * 1024**3, logical_cpus=4) == {}
+
+
+def test_machine_summary_reports_allocation() -> None:
+    machine = {
+        "os": "Linux 5.14",
+        "arch": "x86_64",
+        "logical_cpus": 64,
+        "total_ram_bytes": 512 * 1024**3,
+        "allocation": {"cpus": 17, "memory_limit_bytes": 256 * 1024**3},
+    }
+    assert measure_ram.machine_summary(machine) == (
+        "Linux 5.14 x86_64, 64 logical CPUs, 512 GiB RAM (job allocation: 17 CPUs, 256.0 GiB)"
+    )
+
+
 def test_measure_command_captures_peak_and_writes_trace(tmp_path) -> None:
     trace = tmp_path / "logs" / "trace.csv"
     m = measure_ram.measure_command([sys.executable, "-c", allocating_script()], interval=0.1, trace_path=trace)
