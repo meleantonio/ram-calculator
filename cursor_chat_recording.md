@@ -65,3 +65,9 @@
 **User:** can you sync them?
 
 **Agent:** Could not push. `gh` is not logged in, GitHub MCP authentication timed out, and the browser on this machine is not signed in to GitHub. Origin `main` is a fast-forward ahead of GitHub `main` (`4c30582`). Gave the user a `git push` to run from a machine that can authenticate to GitHub.
+
+## 2026-10-02 — GitHub login
+
+**User:** I've logged you in Github
+
+**Agent:** Confirmed `gh` is logged in as `meleantonio`. Fast-forwarded GitHub `main` to the same commit as Origin `main`.
