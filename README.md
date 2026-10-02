@@ -28,14 +28,15 @@ requirements, or debugging a job that swaps, is OOM-killed, or exceeds a schedul
 Copy the skill folder into your agent's skills directory:
 
 ```bash
-git clone <this-repo-url> measuring-replication-ram-skill
+origin repo clone meleantonio/ram-calculator
+cd ram-calculator
 
 # Cursor: personal (all projects) or per project
-mkdir -p ~/.cursor/skills && cp -r measuring-replication-ram-skill/skills/measuring-replication-ram ~/.cursor/skills/
-# or: cp -r measuring-replication-ram-skill/skills/measuring-replication-ram <project>/.cursor/skills/
+mkdir -p ~/.cursor/skills && cp -r skills/measuring-replication-ram ~/.cursor/skills/
+# or: cp -r skills/measuring-replication-ram <project>/.cursor/skills/
 
 # Claude Code
-mkdir -p ~/.claude/skills && cp -r measuring-replication-ram-skill/skills/measuring-replication-ram ~/.claude/skills/
+mkdir -p ~/.claude/skills && cp -r skills/measuring-replication-ram ~/.claude/skills/
 ```
 
 Then ask your agent something like *"Add memory requirements to the README of this replication package"* or

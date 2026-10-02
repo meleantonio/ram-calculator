@@ -23,11 +23,12 @@ tests/                     # measure_ram.py 的 pytest 测试
 将技能目录复制到智能体的 skills 目录：
 
 ```bash
-git clone <本仓库地址> measuring-replication-ram-skill
+origin repo clone meleantonio/ram-calculator
+cd ram-calculator
 # Cursor
-mkdir -p ~/.cursor/skills && cp -r measuring-replication-ram-skill/skills/measuring-replication-ram ~/.cursor/skills/
+mkdir -p ~/.cursor/skills && cp -r skills/measuring-replication-ram ~/.cursor/skills/
 # Claude Code
-mkdir -p ~/.claude/skills && cp -r measuring-replication-ram-skill/skills/measuring-replication-ram ~/.claude/skills/
+mkdir -p ~/.claude/skills && cp -r skills/measuring-replication-ram ~/.claude/skills/
 ```
 
 ## 直接使用脚本

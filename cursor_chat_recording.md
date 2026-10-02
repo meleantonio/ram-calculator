@@ -32,6 +32,6 @@
   - `set -o pipefail` in the example command;
   - recording of the job's CPU and memory allocation (Slurm variables and cgroup limit) in `measure_ram.py`.
   Tests: 38 passing, 91% coverage.
-- Public repo: no GitHub credentials are available in the agent environment (the GitHub integration is not
-  authenticated), so the work was committed and pushed to the project branch. The user can publish it as a
-  public repository with the **Create repo** button.
+- The repository is **meleantonio/ram-calculator**: https://cursor.com/codebase/meleantonio/ram-calculator
+  Visibility is private; it can be changed in settings on that page. Clone with the Origin CLI
+  (`origin repo clone meleantonio/ram-calculator`). README clone commands were updated to that name.
