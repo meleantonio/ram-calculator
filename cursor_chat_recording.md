@@ -71,3 +71,9 @@
 **User:** I've logged you in Github
 
 **Agent:** Confirmed `gh` is logged in as `meleantonio`. Fast-forwarded GitHub `main` to the same commit as Origin `main`.
+
+## 2026-10-02 — GitHub as source of truth
+
+**User:** how can I make sure the Github repo is now the source of truth for Origin?
+
+**Agent:** Explained that the Origin repo is native (`mirrorStatus: no-mirror`). GitHub becomes the source of truth only by mirroring. There is no in-place switch. The user syncs from GitHub after removing the native Origin repo, because that name is already taken. `origin repo create-mirrored` failed here because the agent token is not scoped for that operation.
