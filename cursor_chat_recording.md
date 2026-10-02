@@ -41,3 +41,9 @@
 **User:** Include the browse URL, private visibility, Origin CLI clone steps, PATH fallback, and Origin CLI docs in the reply.
 
 **Agent:** Updated both READMEs to clone `meleantonio/ram-calculator` and replied with the browse URL and install commands.
+
+## 2026-10-02 — Sync with GitHub
+
+**User:** can you also sync it with github?
+
+**Agent:** Could not. `gh` is not logged in, the GitHub integration has no auth URL in this environment, and `meleantonio/ram-calculator` is an Origin-native repo (`mirrorStatus: no-mirror`). Origin syncs GitHub into Origin, with GitHub as the source of truth; it does not publish an Origin-native repo to GitHub. Told the user how to create the GitHub repo with `gh repo create` and push after `gh auth login`.
