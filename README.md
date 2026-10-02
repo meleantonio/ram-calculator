@@ -25,10 +25,10 @@ requirements, or debugging a job that swaps, is OOM-killed, or exceeds a schedul
 
 ## Install the skill
 
-Copy the skill folder into your agent's skills directory:
+Clone the repository from GitHub, then copy the skill folder into your agent's skills directory:
 
 ```bash
-origin repo clone meleantonio/ram-calculator
+git clone https://github.com/meleantonio/ram-calculator.git
 cd ram-calculator
 
 # Cursor: personal (all projects) or per project
@@ -38,6 +38,8 @@ mkdir -p ~/.cursor/skills && cp -r skills/measuring-replication-ram ~/.cursor/sk
 # Claude Code
 mkdir -p ~/.claude/skills && cp -r skills/measuring-replication-ram ~/.claude/skills/
 ```
+
+Repository: https://github.com/meleantonio/ram-calculator
 
 Then ask your agent something like *"Add memory requirements to the README of this replication package"* or
 *"My Stata job gets killed on the cluster, how much RAM does it need?"*

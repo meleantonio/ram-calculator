@@ -47,3 +47,9 @@
 **User:** can you also sync it with github?
 
 **Agent:** Could not. `gh` is not logged in, the GitHub integration has no auth URL in this environment, and `meleantonio/ram-calculator` is an Origin-native repo (`mirrorStatus: no-mirror`). Origin syncs GitHub into Origin, with GitHub as the source of truth; it does not publish an Origin-native repo to GitHub. Told the user how to create the GitHub repo with `gh repo create` and push after `gh auth login`.
+
+## 2026-10-02 — Point instructions at GitHub
+
+**User:** rewrite the instructions so that they point to the github repo https://github.com/meleantonio/ram-calculator
+
+**Agent:** Replaced the Origin clone commands in `README.md` and `README.zh-CN.md` with `git clone https://github.com/meleantonio/ram-calculator.git` and linked that repository.
