@@ -22,6 +22,16 @@
 - Corrections relative to the post: on Unix, `Rscript` runs as a process named `R`, so `pgrep Rscript` misses it
   (use `pgrep -nf <script>`). `/usr/bin/time` reports the largest single process, not the sum over workers.
   On Windows, `PeakWorkingSet64` must be read while the process is still alive.
+- Tested the skill with a fresh subagent on a realistic scenario: a JPE submission due tomorrow, R using
+  `future` workers, MATLAB variants, a Slurm cluster, and a user asking for "a reasonable estimate". The agent
+  refused to invent a number, as intended. Its feedback led to these additions:
+  - a "look for measurements you already have" step (`sacct`/`seff`);
+  - upper-bound wording for runs under an enforced limit, and a rule against extrapolating from subsamples;
+  - `sacct` and cgroup caveats (the `.batch` row, sampling frequency, page cache, step vs job cgroup);
+  - an `sbatch` measurement template and a note on MATLAB cluster-profile workers;
+  - `set -o pipefail` in the example command;
+  - recording of the job's CPU and memory allocation (Slurm variables and cgroup limit) in `measure_ram.py`.
+  Tests: 38 passing, 91% coverage.
 - Public repo: no GitHub credentials are available in the agent environment (the GitHub integration is not
   authenticated), so the work was committed and pushed to the project branch. The user can publish it as a
   public repository with the **Create repo** button.
