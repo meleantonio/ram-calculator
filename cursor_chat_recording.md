@@ -83,3 +83,9 @@
 **User:** do it for me
 
 **Agent:** Tried `origin repo create-mirrored meleantonio/ram-calculator`. The session Origin token is not scoped for that operation. Did not delete the Origin repo, because this session could not create the replacement mirror. GitHub and Origin `main` both remained at the same commit. The browser login to cursor.com/codebase was blocked by a challenge page.
+
+## 2026-10-02 — Mirror confirmed by the user
+
+**User:** done, now the source of truth is the Github repo, and the Origin repo is a mirror
+
+**Agent:** `meleantonio/ram-calculator` is no longer on Origin. The Origin copy is `meleantonio/meleantonio-ram-calculator`. This session's token cannot read that mirror (`403` / not scoped), so `mirrorStatus` was not verified from here. GitHub `main` was `6db0abb`. Pushes to the old Origin remote fail.
